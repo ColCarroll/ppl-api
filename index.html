@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>PPL APIs</title>
+    <link rel="stylesheet" href="css/tufte.css" />
+    <link rel="stylesheet" href="css/latex.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML' async>
+    </script>
+
+    <style>
+        code {
+            background-color: #EEEEEE;
+            font-family: Consolas, Monaco, Lucida Console, Liberation Mono, DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New;
+        }
+
+        .biglogo {
+            border: none;
+            width: auto;
+            height: 14em;
+            margin-top: 3em;
+        }
+
+        .logo {
+            border: none;
+            width: auto;
+            height: 5em;
+            margin-top: 3em;
+        }
+
+        .title {
+            display: inline-block;
+            text-align: right;
+        }
+
+        video {
+            max-width: 100%;
+            height: auto;
+        }
+
+        pre {
+            border: 1px solid #196786;
+            padding: 10px;
+            background-color: aliceblue;
+        }
+    </style>
+</head>
+
+<body>
+    <article>
+        <div class=title style="display: inline-block">
+            <h1>A tour of probabilistic programming language APIs</h1>
+            <h2 class="subtitle">What does it look like to do MCMC in different frameworks?</h2>
+            <p class="subtitle"><a href="https://colindcarroll.com">Colin Carroll</a></p>
+        </div>
+        <section>
+            <h2>Introduction</h2>
+            <p>
+                I wanted an easy reference for myself and others to see how different developers think about defining
+                probabilistic models, and this is an attempt at that. I have a number of biases<label for="biases"
+                    class="margin-toggle sidenote-number"></label>
+                <input type="checkbox" id="biases" class="margin-toggle" />
+                <span class=sidenote>I am a contributor to <code>PyMC3</code>, and have been working on
+                    <code>PyMC4</code> (which uses TensorFlow probability). I write far more Python than R, and far more
+                    R as julia or C++.
+                </span>, but the code here is open-source, and contributions/fixes are gratefully accepted.
+            </p>
+        </section>
+
+        <section>
+            <h2>The Task</h2>
+            <p>
+                I have generated a dataset as follows:
+            </p>
+            <pre class="code">import numpy as np
+
+np.random.seed(0)
+
+ndims = 5
+ndata = 100
+X = np.random.randn(ndata, ndims)
+w_ = np.random.randn(ndims)  # hidden
+noise_ = 0.1 * np.random.randn(ndata)  # hidden
+
+y_obs = X.dot(w_) + noise_</pre>
+        </section>
+        <figure>
+            <label for="linear-reg" class="margin-toggle">&#8853;</label><input type="checkbox" id="linear-reg"
+                class="margin-toggle" /><span class="marginnote">Simulated data with the coordinatewise line of best
+                fit.</span>
+            <img src="img/data.png" alt="The simulated linear regression data" />
+        </figure>
+        <section>
+            <p>
+                For each probabilistic programming language (PPL), I will:
+                <ol>
+                    <li>Write down the following model:
+                        $$
+                        \begin{align}
+                        p(\mathbf{w}) &\sim \mathcal{N}(\mathbf{0}, I_5)\\
+                        p(\mathbf{y} | X, \mathbf{w}) &\sim \mathcal{N}(X\mathbf{w}, 0.1I_{100}),
+                        \end{align}
+                        $$
+                        where \(I_n\) is the \(n \times n\) identity matrix.
+                    </li>
+                    <li>Draw 1,000 samples from the posterior distribution
+                        $$
+                        p(\mathbf{w} | X, \mathbf{y}) \propto p(\mathbf{y} | X, \mathbf{w}) p(\mathbf{w})
+                        $$
+                        where I pass <code>y_obs</code> to the code at some point.
+                    </li>
+                    <li>Do a sanity check that the samples for <code>w</code> are reasonable near to the true values for
+                        <code>w</code>, given the model.<label for="posterior"
+                            class="margin-toggle sidenote-number"></label><input type="checkbox" id="posterior"
+                            class="margin-toggle" /><span class="sidenote">For those keeping track at home, the
+                            posterior of the model given the data is also a Gaussian, $$p(\mathbf{w} | X, \mathbf{y}) =
+                            \mathcal{N}((X^TX + I_5)^{-1}X^T\mathbf{y}, (X^TX + I_5)^{-1})$$</span></li>
+            </p>
+        </section>
+
+        <section>
+            <h2>PyMC3</h2>
+            version 3.7
+            <p><a href="https://docs.pymc.io/">Documentation</a>.</p>
+            <pre class="code">import pymc3 as pm
+import theano.tensor as tt
+
+with pm.Model():
+    w = pm.Normal('w', 0, 1, shape=ndims)
+    y = pm.Normal('y', tt.dot(X, w), 0.1, observed=y_obs)
+    trace = pm.sample(1000)</pre>
+        </section>
+
+        <section>
+            <h2>PyStan</h2>
+            version 2.19.0.0
+            <p><a href="https://pystan.readthedocs.io">Documentation for PyStan</a>, and for <a
+                    href="https://mc-stan.org/">Stan itself</a>.</p>
+            <pre class="code">import pystan
+
+linear_regression = """
+data {
+  int<lower=0> N;   // number of data items
+  int<lower=0> K;   // number of predictors
+  matrix[N, K] X;   // predictor matrix
+  vector[N] y;      // outcome vector
+}
+parameters {
+  vector[K] w;       // coefficients for predictors
+}
+model {
+  y ~ normal(X * w, 0.1);  // likelihood
+}
+"""
+
+linear_data = {'N': ndata,
+               'K': ndims,
+               'y': y_obs,
+               'X': X}
+
+sm = pystan.StanModel(model_code=linear_regression)
+fit = sm.sampling(data=linear_data, iter=1000, chains=4)</pre>
+        </section>
+
+        <section>
+            <h2>emcee</h2>
+            version 2.2.1
+            <p><a href="https://emcee.readthedocs.io">Documentation</a>.</p>
+            <pre class="code">import scipy.stats as st
+
+import emcee
+
+# log likelihood
+def lnlike(w, X, y):
+    model = X.dot(w)
+    inv_sigma2 = 0.1 ** -2
+    return -0.5*(np.sum((y-model)**2)*inv_sigma2 - np.log(inv_sigma2))
+
+# Define a prior for w
+w_rv = st.multivariate_normal(np.zeros(ndims), np.eye(ndims))
+
+# Log probability for w
+lnprior = w_rv.logpdf
+
+# logp(w | X, y) = logp(y | X, w) + logp(w)
+def lnprob(w, X, y):
+    return lnprior(w) + lnlike(w, X, y)
+
+nwalkers = 100
+pos = w_rv.rvs(size=nwalkers)
+sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=(X, y_obs))
+
+pos, lprob, rstate  = sampler.run_mcmc(pos, 1000)</pre>
+        </section>
+
+        <section>
+            <h2>Pyro</h2>
+            version 0.3.4
+            <p><a href="https://pyro.ai/">Documentation</a>.</p>
+            <pre class="code">import pyro
+import torch
+from pyro.infer.mcmc import HMC, MCMC
+import pyro.distributions as dist
+
+
+def model(X):
+    w = pyro.sample('w', dist.Normal(torch.zeros(ndims), torch.ones(ndims)))
+    y = pyro.sample('y', dist.Normal(torch.matmul(X, w), 0.1 * torch.ones(ndata)),
+                    obs=torch.as_tensor(y_obs, dtype=torch.float32))
+    return y
+
+hmc_kernel = HMC(model, step_size=0.0855, num_steps=4)
+mcmc = MCMC(hmc_kernel, num_samples=1_000, warmup_steps=500)
+
+mcmc = mcmc.run(torch.as_tensor(X, dtype=torch.float32))</pre>
+        </section>
+
+        <section>
+            <h2>TensorFlow Probability</h2>
+            version 0.8.0-dev20190721
+            <p><a href="https://www.tensorflow.org/probability">Documentation</a>.</p>
+            <pre class="code">import tensorflow as tf
+import tensorflow_probability as tfp
+tfd = tfp.distributions
+
+X_tensor = tf.convert_to_tensor(X, dtype='float32')
+
+@tf.function
+def target_log_prob_fn(w):
+    w_dist = tfd.Normal(loc=tf.zeros(ndims), scale=1., name="w")
+    w_prob = tf.reduce_mean(w_dist.log_prob(w))
+    y_dist = tfd.Normal(loc=tf.matmul(X_tensor, w), scale=0.1, name="y")
+    y_prob = tf.reduce_mean(y_dist.log_prob(y_obs))
+    return w_prob + y_prob
+
+
+# Initialize the HMC transition kernel.
+num_results = 1000
+num_burnin_steps = 500
+adaptive_hmc = tfp.mcmc.SimpleStepSizeAdaptation(
+    tfp.mcmc.HamiltonianMonteCarlo(
+        target_log_prob_fn=target_log_prob_fn,
+        num_leapfrog_steps=4,
+        step_size=6.11e-01),
+    num_adaptation_steps=int(num_burnin_steps * 0.8))
+
+samples = tfp.mcmc.sample_chain(
+    num_results=num_results,
+    num_burnin_steps=num_burnin_steps,
+    current_state=tf.zeros((ndims, 1)),
+    kernel=adaptive_hmc,
+    trace_fn=None)</pre>
+        </section>
+
+        <section>
+            <h2>Accuracy</h2>
+            <p>I have confidence that all the libraries implement their algorithm of choice correctly, and I tried to
+                write a simple model that would provide some reasonable samples from the correct
+                posterior. This section tries to verify that my implementations are reasonable.</p>
+        </section>
+        <figure>
+            <label for="accuracy" class="margin-toggle">&#8853;</label><input type="checkbox" id="accuracy"
+                class="margin-toggle" /><span class="marginnote">Error for each of the five coordinates of the
+                weight vector. Clearly something is up with my TensorFlow Probability implementation...</span>
+            <img src="img/accuracy.png" alt="Accuracy of the MCMC samples." />
+        </figure>
+
+    </article>
+</body>
+<footer>
+    <!-- <script type="text/javascript">
+        document._EUGO = 'b165094c741eb9eea96d';
+        document.head.appendChild(function () {
+            var s = document.createElement('script');
+            s.src = 'https://eugo.io/eugo.js';
+            s.async = 1;
+            return s;
+        }());
+    </script> -->
+</footer>
+
+</html>
