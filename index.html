@@ -231,10 +231,10 @@ X_tensor = tf.convert_to_tensor(X, dtype='float32')
 
 @tf.function
 def target_log_prob_fn(w):
-    w_dist = tfd.Normal(loc=tf.zeros(ndims), scale=1., name="w")
-    w_prob = tf.reduce_mean(w_dist.log_prob(w))
+    w_dist = tfd.Normal(loc=tf.zeros((ndims, 1)), scale=1.0, name="w")
+    w_prob = tf.reduce_sum(w_dist.log_prob(w))
     y_dist = tfd.Normal(loc=tf.matmul(X_tensor, w), scale=0.1, name="y")
-    y_prob = tf.reduce_mean(y_dist.log_prob(y_obs))
+    y_prob = tf.reduce_sum(y_dist.log_prob(y_obs.reshape(-1, 1)))
     return w_prob + y_prob
 
 
@@ -245,15 +245,15 @@ adaptive_hmc = tfp.mcmc.SimpleStepSizeAdaptation(
     tfp.mcmc.HamiltonianMonteCarlo(
         target_log_prob_fn=target_log_prob_fn,
         num_leapfrog_steps=4,
-        step_size=6.11e-01),
+        step_size=0.01),
     num_adaptation_steps=int(num_burnin_steps * 0.8))
 
-samples = tfp.mcmc.sample_chain(
+samples, is_accepted = tfp.mcmc.sample_chain(
     num_results=num_results,
     num_burnin_steps=num_burnin_steps,
     current_state=tf.zeros((ndims, 1)),
     kernel=adaptive_hmc,
-    trace_fn=None)</pre>
+    trace_fn=lambda _, pkr: pkr.inner_results.is_accepted)</pre>
         </section>
 
         <section>
@@ -265,7 +265,8 @@ samples = tfp.mcmc.sample_chain(
         <figure>
             <label for="accuracy" class="margin-toggle">&#8853;</label><input type="checkbox" id="accuracy"
                 class="margin-toggle" /><span class="marginnote">Error for each of the five coordinates of the
-                weight vector. Clearly something is up with my TensorFlow Probability implementation...</span>
+                weight vector. Note the \(y\)-axis, so to a first approximation, these are all pretty good.
+            </span>
             <img src="img/accuracy.png" alt="Accuracy of the MCMC samples." />
         </figure>
 
