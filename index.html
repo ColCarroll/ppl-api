@@ -40,7 +40,7 @@
                 <input type="checkbox" id="biases" class="margin-toggle" />
                 <span class=sidenote>I am a contributor to <code>PyMC3</code>, and have been working on
                     <code>PyMC4</code> (which uses TensorFlow probability). I write far more Python than R, and far more
-                    R as julia or C++. </span>, but <a
+                    R than julia or C++. </span>, but <a
                     href="https://github.com/ColCarroll/ppl-api/blob/master/notebooks/different_ppls.ipynb">the code
                     shown here is open-source</a>, and <a
                     href="https://github.com/ColCarroll/ppl-api/pulls">contributions</a>/<a
@@ -115,16 +115,19 @@ y_obs = X.dot(w_) + noise_</pre>
             <p><a href="https://pystan.readthedocs.io">Documentation for PyStan</a>, and for <a
                     href="https://mc-stan.org/">Stan itself</a>.</p>
             <p>Hand-rolled automatic differentiation in C++. Many (most?) good ideas in <code>PyMC3</code> came from
-                here. Updates to the code sometimes accompany papers describing new algorithms, and the authors care
-                deeply about practicality. A very good, fast choice if you care about MCMC. The models are in their own
-                (very nice) programming language, which can be a little funny to use in Python (where I would prefer
-                Python objects to strings). Uses the dynamic NUTS algorithm<label for="nuts"
-                    class="margin-toggle sidenote-number"></label><input type="checkbox" id="nuts"
-                    class="margin-toggle" /><span class="sidenote">The Stan team actually keeps changing/improving the
-                    sampling algorithm they use, and calling it NUTS is at least a little misleading, since it is an
-                    order of magnitude or two faster (for certain problems) than the one described in the paper by
-                    now.</span> by default, which is currently the best default to use, though only two libraries here
-                have a good version.</p>
+                here. Updates to the code sometimes accompany papers describing the new algorithms. The
+                authors/contributors care deeply about correctness and practicality, and it shows. A very good, fast
+                choice if you care about MCMC. The models are in their own programming language, which can be a little
+                funny to use in Python (where I would prefer Python objects to strings). Uses the dynamic NUTS
+                algorithm<label for="nuts" class="margin-toggle sidenote-number"></label><input type="checkbox"
+                    id="nuts" class="margin-toggle" /><span class="sidenote">The Stan team actually keeps
+                    changing/improving the sampling algorithm they use, and calling it NUTS is <a
+                        href="https://twitter.com/dan_p_simpson/status/1037347754845057025">at least a little
+                        misleading</a>, since these improvements are substantive compared to the algorithm described in
+                    the paper. If you want to be proper, call it something like "dynamic Hamiltonian Monte Carlo method
+                    with multinomial sampling of dynamic length trajectories, generalized termination criterion, and
+                    improved adaptation of the Euclidean metric."</span> by default, which is currently the best default
+                to use, though only two libraries here have a good version.</p>
             <pre class="code prettyprint lang-python">import pystan
 
 linear_regression = """
@@ -337,6 +340,45 @@ ed_samples, is_accepted = tfp.mcmc.sample_chain(
         </section>
 
         <section>
+            <h2>Numpyro</h2>
+            version 0.1.0
+            <p><a href="https://numpyro.readthedocs.io/en/v0.1.0/">Documentation</a>. </p>
+
+            <p>Uses <code>jax</code> for automatic differentiation. Built by the same people who work on Pyro, and
+                includes a very cool iterative implemenation of the NUTS algorithm<label for="npyro"
+                    class="margin-toggle sidenote-number"></label><input type="checkbox" id="npyro"
+                    class="margin-toggle" /><span class="sidenote">I have not looked closely enough to see if this is
+                    "NUTS as in the 2013 paper", or "NUTS as in the algorithm implemented by Stan/PyMC3."</span>. Note
+                the import section looks a little overwhelming, but <code>jax</code> is a wonderful library that wraps
+                numpy functionality. A more typical usage would be to <code>import jax.numpy as np</code>, so that no
+                one was any wiser that you are using autodiff. This looks very similar to the Pyro implementation, but
+                notice I am jumping through fewer hoops to convert my numpy arrays into torch tensors.</p>
+            <pre class="code prettyprint lang-python">import jax.numpy as jnp
+from jax import random
+
+import numpyro.distributions as dist
+from numpyro.handlers import sample
+from numpyro.hmc_util import initialize_model
+from numpyro.mcmc import mcmc
+
+
+def model(X):
+    w = sample('w', dist.Normal(jnp.zeros(ndims), jnp.ones(ndims)))
+    y = sample('y', dist.Normal(jnp.matmul(X, w), 0.1 * jnp.ones(ndata)), obs=y_obs)
+
+rng = random.PRNGKey(0)
+
+init_params, potential_fn, constrain_fn = initialize_model(rng, model, X=X)
+num_warmup, num_samples = 1000, 2000
+
+# Run NUTS.
+npyro_samples = mcmc(num_warmup, num_samples, init_params,
+                 potential_fn=potential_fn,
+                 trajectory_length=10,
+                 constrain_fn=constrain_fn)</pre>
+        </section>
+
+        <section>
             <h2>Brancher</h2>
             version 0.3.4
             <p><a href="https://brancher.org/">Documentation</a>. </p>
@@ -383,11 +425,10 @@ def linear_model():
             <h2>Accuracy</h2>
             <p>I have confidence that all the libraries implement their algorithm of choice correctly, and I tried to
                 write a simple model that would provide some reasonable samples from the correct
-                posterior. This section tries to verify that my implementations are reasonable.</p>
-            <p>All the implementations are gradient-based except for <code>emcee</code>, which may be why it sticks out,
-                though I <i>think</i> it is an accident that the MCMC errors all point in the same direction for the
-                gradient
-                samplers. </p>
+                posterior. This section <em>only</em> tries to verify that my implementations are reasonable. </p>
+            <p>To say again with a stronger font, <b>any errors shown here are (probably) MCMC error, and should not be
+                    interpreted as an implementation being "good" or "bad".</b> It is a bigger, more careful job to
+                benchmark performance, which is definitely <em>not</em> what this chart does.</p>
         </section>
         <figure>
             <label for="accuracy" class="margin-toggle">&#8853;</label><input type="checkbox" id="accuracy"
