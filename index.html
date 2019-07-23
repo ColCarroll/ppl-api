@@ -118,8 +118,13 @@ y_obs = X.dot(w_) + noise_</pre>
                 here. Updates to the code sometimes accompany papers describing new algorithms, and the authors care
                 deeply about practicality. A very good, fast choice if you care about MCMC. The models are in their own
                 (very nice) programming language, which can be a little funny to use in Python (where I would prefer
-                Python objects to strings). Uses the dynamic NUTS algorithm by default, which works great for most
-                problems.</p>
+                Python objects to strings). Uses the dynamic NUTS algorithm<label for="nuts"
+                    class="margin-toggle sidenote-number"></label><input type="checkbox" id="nuts"
+                    class="margin-toggle" /><span class="sidenote">The Stan team actually keeps changing/improving the
+                    sampling algorithm they use, and calling it NUTS is at least a little misleading, since it is an
+                    order of magnitude or two faster (for certain problems) than the one described in the paper by
+                    now.</span> by default, which is currently the best default to use, though only two libraries here
+                have a good version.</p>
             <pre class="code prettyprint lang-python">import pystan
 
 linear_regression = """
