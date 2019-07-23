@@ -9,43 +9,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML' async>
     </script>
-
-    <style>
-        code {
-            background-color: #EEEEEE;
+    <style type="text/css">
+        /* Overrides for Google-code-prettify */
+        pre.prettyprint {
             font-family: Consolas, Monaco, Lucida Console, Liberation Mono, DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New;
-        }
-
-        .biglogo {
-            border: none;
-            width: auto;
-            height: 14em;
-            margin-top: 3em;
-        }
-
-        .logo {
-            border: none;
-            width: auto;
-            height: 5em;
-            margin-top: 3em;
-        }
-
-        .title {
-            display: inline-block;
-            text-align: right;
-        }
-
-        video {
-            max-width: 100%;
-            height: auto;
-        }
-
-        pre {
-            border: 1px solid #196786;
             padding: 10px;
-            background-color: aliceblue;
+            padding-left: 1.5% !important;
+            border: 1px solid #196786;
+            background: aliceblue;
         }
     </style>
+
+    <script src="https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js" async></script>
+
 </head>
 
 <body>
@@ -69,6 +45,17 @@
                     shown here is open-source</a>, and <a
                     href="https://github.com/ColCarroll/ppl-api/pulls">contributions</a>/<a
                     href="https://github.com/ColCarroll/ppl-api/issues">suggestions</a> are gratefully accepted. </p>
+
+            <p>I am also including an opinionated - but I hope fair - summary of the projects as of the time of
+                writing.<label for="libs" class="margin-toggle sidenote-number"></label>
+                <input type="checkbox" id="libs" class="margin-toggle" />
+                <span class=sidenote>On my <code>TODO</code> list are <a href="https://greta-stats.org/">greta</a> in R;
+                    <a href="https://turing.ml/">Turing</a> and <a href="https://probcomp.github.io/Gen/">Gen</a> in
+                    Julia; and <a href="https://github.com/p2t2/figaro">Figaro</a> and <a
+                        href="https://github.com/stripe/rainier">Rainier</a> in Scala.</span>
+                Different libraries are written for different reasons, and I care strongly about easily writing and
+                sharing models, and then sampling from them.
+            </p>
         </section>
 
         <section>
@@ -76,7 +63,7 @@
             <p>
                 I have generated a dataset as follows:
             </p>
-            <pre class="code">import numpy as np
+            <pre class="code prettyprint lang-python">import numpy as np
 
 np.random.seed(0)
 
@@ -123,24 +110,17 @@ y_obs = X.dot(w_) + noise_</pre>
         </section>
 
         <section>
-            <h2>PyMC3</h2>
-            version 3.7
-            <p><a href="https://docs.pymc.io/">Documentation</a>.</p>
-            <pre class="code">import pymc3 as pm
-import theano.tensor as tt
-
-with pm.Model():
-    w = pm.Normal('w', 0, 1, shape=ndims)
-    y = pm.Normal('y', tt.dot(X, w), 0.1, observed=y_obs)
-    trace = pm.sample(1000)</pre>
-        </section>
-
-        <section>
             <h2>PyStan</h2>
             version 2.19.0.0
             <p><a href="https://pystan.readthedocs.io">Documentation for PyStan</a>, and for <a
                     href="https://mc-stan.org/">Stan itself</a>.</p>
-            <pre class="code">import pystan
+            <p>Hand-rolled automatic differentiation in C++. Many (most?) good ideas in <code>PyMC3</code> came from
+                here. Updates to the code sometimes accompany papers describing new algorithms, and the authors care
+                deeply about practicality. A very good, fast choice if you care about MCMC. The models are in their own
+                (very nice) programming language, which can be a little funny to use in Python (where I would prefer
+                Python objects to strings). Uses the dynamic NUTS algorithm by default, which works great for most
+                problems.</p>
+            <pre class="code prettyprint lang-python">import pystan
 
 linear_regression = """
 data {
@@ -167,10 +147,33 @@ fit = sm.sampling(data=linear_data, iter=1000, chains=4)</pre>
         </section>
 
         <section>
+            <h2>PyMC3</h2>
+            version 3.7
+            <p><a href="https://docs.pymc.io/">Documentation</a>.</p>
+            <p>Uses <code>theano</code> for automatic differentiation. The contributors are strong, all the diagnostics
+                are good looking, and all the estimates are above average<label for="morebiases"
+                    class="margin-toggle sidenote-number"></label> <input type="checkbox" id="morebiases"
+                    class="margin-toggle" /> <span class=sidenote>See my biases above.</span>. More seriously, it is
+                quite fast, flexible if you are willing to write Theano, and has robust tuning and diagnostics, so you
+                can get some samples from a model with a minimum of fuss. Interoperates quite smoothly with Python
+                projects. Also uses the NUTS algorithm.</p>
+            <pre class="code prettyprint lang-python">import pymc3 as pm
+import theano.tensor as tt
+
+with pm.Model():
+    w = pm.Normal('w', 0, 1, shape=ndims)
+    y = pm.Normal('y', tt.dot(X, w), 0.1, observed=y_obs)
+    trace = pm.sample(1000)</pre>
+        </section>
+        <section>
             <h2>emcee</h2>
             version 2.2.1
             <p><a href="https://emcee.readthedocs.io">Documentation</a>.</p>
-            <pre class="code">import scipy.stats as st
+            <p>This library is a "pure-Python implementation of Goodman & Weare’s Affine Invariant Markov chain Monte
+                Carlo (MCMC) Ensemble sampler", and does not use gradients. This means it does not scale as well to
+                over, say 10 dimensions, but installation is <em>very</em> easy. Also somewhat unique in writing custom
+                likelihood and prior density functions. Lots of examples and users in the astrophysics community.</p>
+            <pre class="code prettyprint lang-python">import scipy.stats as st
 
 import emcee
 
@@ -201,7 +204,16 @@ pos, lprob, rstate  = sampler.run_mcmc(pos, 1000)</pre>
             <h2>Pyro</h2>
             version 0.3.4
             <p><a href="https://pyro.ai/">Documentation</a>.</p>
-            <pre class="code">import pyro
+            <p>Uses <code>pytorch</code> for automatic differentiation. I get the impression the library traditionally
+                cared more about variational inference, but running HMC was quite smooth. There is no NUTS, which means
+                you may have to manually set the number of steps. <label for="hmc"
+                    class="margin-toggle sidenote-number"></label><input type="checkbox" id="hmc"
+                    class="margin-toggle" /><span class="sidenote">As is the case with TensorFlow Probability, this
+                    implementation is parametrized by number of steps rather than path length, which has some
+                    performance implications I still do not entirely grasp. For example, taking smaller steps with a
+                    fixed path length means each sample takes longer, while keeping a fixed number of steps means the
+                    sample will take the same amount of time but be more correlated.</span></p>
+            <pre class="code prettyprint lang-python">import pyro
 import torch
 from pyro.infer.mcmc import HMC, MCMC
 import pyro.distributions as dist
@@ -223,7 +235,20 @@ mcmc = mcmc.run(torch.as_tensor(X, dtype=torch.float32))</pre>
             <h2>TensorFlow Probability</h2>
             version 0.8.0-dev20190721
             <p><a href="https://www.tensorflow.org/probability">Documentation</a>.</p>
-            <pre class="code">import tensorflow as tf
+            <p>Uses <code>tensorflow</code> for automatic differentiation. This is also using raw HMC parametrized by
+                number of steps (see <code>Pyro</code> for commentary). This is the most verbose of the libraries
+                reviewed here, which can be good (more control) and bad (this was four lines in
+                <code>PyMC3</code>)<label for="bug" class="margin-toggle sidenote-number"></label><input type="checkbox"
+                    id="bug" class="margin-toggle" /><span class="sidenote">I actually had a bug for a while where I had
+                    <code>w_dist = tfd.Normal(loc=tf.zeros(ndims), scale=1.0, name="w")</code>. This defines a valid
+                    model, because <code>tfp</code> is so flexible, but the <em>wrong</em> model.</span>. The
+                computations are also all vectorized: I can sample 1,000 chains in about the same time I sample 4
+                chains,
+                which seems pretty unique.<label for="chains" class="margin-toggle sidenote-number"></label><input
+                    type="checkbox" id="chains" class="margin-toggle" /><span class="sidenote">Blog post coming on
+                    that.</span> These are some reasons why one might write a high level, user friendly API on top of
+                this library and name it <code>PyMC4</code>.</p>
+            <pre class="code prettyprint lang-python">import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
@@ -257,10 +282,107 @@ samples, is_accepted = tfp.mcmc.sample_chain(
         </section>
 
         <section>
+            <h2>Edward 2</h2>
+            version 0.8.0-dev20190721
+            <p><a
+                    href="https://github.com/tensorflow/probability/tree/master/tensorflow_probability/python/edward2">Documentation</a>.
+            </p>
+            <p>Uses <code>tensorflow</code> for automatic differentiation. This is a submodule of TensorFlow Probability
+                that provides a flexible API based on the ideas from the popular <a
+                    href="http://edwardlib.org/">Edward</a> library<label for="edward"
+                    class="margin-toggle sidenote-number"></label><input type="checkbox" id="edward"
+                    class="margin-toggle" /><span class="sidenote">The same developer, so the similarity is not
+                    surprising.</span>. Note the biggest change from the <code>tfp</code> code above is that defining
+                the joint
+                probability is a bit cleaner, but we still use the same code to actually <em>get</em> the samples.
+            </p>
+            <pre class="code prettyprint lang-python">from tensorflow_probability import edward2 as ed
+import tensorflow as tf
+
+X_tensor = tf.convert_to_tensor(X, dtype='float32')
+
+def linear_regression(X):
+    w = ed.Normal(loc=tf.zeros((ndims, 1)), scale=1.0, name="w")
+    y = ed.Normal(loc=tf.matmul(X, w), scale=0.1, name='y')
+    return y
+
+log_joint = ed.make_log_joint_fn(linear_regression)
+
+
+def target_log_prob_fn(w):
+    return log_joint(X_tensor, w=w, y=y_obs.reshape(-1, 1))
+
+# Below here is from TFP section
+num_results = 1000
+num_burnin_steps = 500
+
+adaptive_hmc = tfp.mcmc.SimpleStepSizeAdaptation(
+    tfp.mcmc.HamiltonianMonteCarlo(
+        target_log_prob_fn=target_log_prob_fn,
+        num_leapfrog_steps=4,
+        step_size=0.01),
+    num_adaptation_steps=int(num_burnin_steps * 0.8))
+
+ed_samples, is_accepted = tfp.mcmc.sample_chain(
+    num_results=num_results,
+    num_burnin_steps=num_burnin_steps,
+    current_state=tf.zeros((ndims, 1)),
+    kernel=adaptive_hmc,
+    trace_fn=lambda _, pkr: pkr.inner_results.is_accepted)</pre>
+        </section>
+
+        <section>
+            <h2>Brancher</h2>
+            version 0.3.4
+            <p><a href="https://brancher.org/">Documentation</a>. </p>
+            <p><em>NOTE: Very new library. As far as I can tell, this does not implement MCMC (yet?), nor can I
+                    calculate log probabilities to verify my implementation. It looks nice, though!</em> </p>
+
+            <p>Uses <code>pytorch</code> for automatic differentiation. This came out this week, and I gave it a test
+                drive, but could not do much damage with it yet.</p>
+            <pre class="code prettyprint lang-python">from brancher.variables import ProbabilisticModel
+from brancher.standard_variables import NormalVariable
+from brancher import inference
+import brancher.functions as BF
+import torch
+
+X_tensor = torch.as_tensor(X, dtype=torch.float32)
+
+# Model
+w = NormalVariable(loc=torch.zeros(ndims), scale=1., name="w")
+y = NormalVariable(loc=BF.matmul(X_tensor, w), scale=0.1, name="y")
+
+y.observe(y_obs)
+model = ProbabilisticModel([w, y])</pre>
+        </section>
+
+        <section>
+            <h2>PyMC4</h2>
+            version 0.0.1
+            <p><a href="https://github.com/pymc-devs/pymc4">Documentation</a>. </p>
+            <p><em>NOTE: Still working on the API. Don't use this yet.</em> </p>
+
+            <p>Uses tensorflow probability (and hence TensorFlow) for automatic differentiation. I am including this for
+                what the model definition syntax is looking like right now, though some work needs to happen to wire the
+                model through to the proper TensorFlow Probability functions.</p>
+            <pre class="code prettyprint lang-python">import pymc4
+import tensorflow as tf
+
+@pymc4.model()
+def linear_model():
+    w = yield pymc4.distributions.Normal('w', mu=np.zeros((5, 1)), sigma=1.)
+    y = yield pymc4.distributions.Normal('y', mu=tf.matmul(X, w), sigma=0.1)</pre>
+        </section>
+
+        <section>
             <h2>Accuracy</h2>
             <p>I have confidence that all the libraries implement their algorithm of choice correctly, and I tried to
                 write a simple model that would provide some reasonable samples from the correct
                 posterior. This section tries to verify that my implementations are reasonable.</p>
+            <p>All the implementations are gradient-based except for <code>emcee</code>, which may be why it sticks out,
+                though I <i>think</i> it is an accident that the MCMC errors all point in the same direction for the
+                gradient
+                samplers. </p>
         </section>
         <figure>
             <label for="accuracy" class="margin-toggle">&#8853;</label><input type="checkbox" id="accuracy"
