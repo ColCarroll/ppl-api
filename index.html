@@ -426,10 +426,16 @@ def linear_model():
             version 0.13.0
             <p><a href="https://github.com/probprog/pyprob">Documentation</a>. </p>
             <p>Joins <code>emcee</code> in not using a gradient based sampler -- here we use importance sampling. I also
-                had to cheat a little bit and take 50,000 samples instead of 1,000 to get the estimates to be reasonable.
-                The samples are pretty fast, but I suspect this does not scale to higher dimensions (but I also suspect
+                had to cheat a little bit and take 50,000 samples instead of 1,000 to get the estimates to be
+                reasonable.
+                The samples are pretty fast, but <strike>I suspect this does not scale to higher
+                    dimensions</strike><label for="importance" class="margin-toggle sidenote-number"></label><input
+                    type="checkbox" id="importance" class="margin-toggle" /><span class="sidenote">Now I have <a
+                        href="https://arxiv.org/abs/1907.03382">a paper to read</a> about how importance sampling can
+                    scale.</span> (but I also suspect
                 that this does allow for defining a more broad class of models than most of the other languages).
-                Defining this model was pretty nice, and I am surprised more languages do not subclass a <code>Model</code>
+                Defining this model was pretty nice, and I am surprised more languages do not subclass a
+                <code>Model</code>
                 object.
             </p>
             <pre class="code prettyprint lang-python">import torch
@@ -455,7 +461,7 @@ posterior = model.posterior_distribution(num_traces=50_000,
                                          inference_engine=pyprob.InferenceEngine.IMPORTANCE_SAMPLING,
                                          observe={'y_obs': torch.as_tensor(y_obs, dtype=torch.float32)})
 </pre>
-</section>
+        </section>
 
         <section>
             <h2>Accuracy</h2>
