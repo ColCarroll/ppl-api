@@ -213,17 +213,21 @@ pos, lprob, rstate  = sampler.run_mcmc(pos, 1000)</pre>
             version 0.3.4
             <p><a href="https://pyro.ai/">Documentation</a>.</p>
             <p>Uses <code>pytorch</code> for automatic differentiation. I get the impression the library traditionally
-                cared more about variational inference, but running HMC was quite smooth. There is no NUTS, which means
-                you may have to manually set the number of steps. <label for="hmc"
+                cared more about variational inference, but running HMC<label for="hmc"
                     class="margin-toggle sidenote-number"></label><input type="checkbox" id="hmc"
                     class="margin-toggle" /><span class="sidenote">As is the case with TensorFlow Probability, this
                     implementation is parametrized by number of steps rather than path length, which has some
                     performance implications I still do not entirely grasp. For example, taking smaller steps with a
                     fixed path length means each sample takes longer, while keeping a fixed number of steps means the
-                    sample will take the same amount of time but be more correlated.</span></p>
+                    sample will take the same amount of time but be more correlated.</span> was quite smooth.
+                <strike>There is no NUTS, which means you may have to manually set the number of steps</strike><label for="pyronuts"
+                    class="margin-toggle sidenote-number"></label><input type="checkbox" id="pyronuts"
+                    class="margin-toggle" /><span class="sidenote">This was <a
+                        href="http://docs.pyro.ai/en/0.3.4/mcmc.html#nuts">clearly documented</a>, I just missed it. Updated the code
+                    example to use it, too.</span>. Pyro implements NUTS as well as HMC.</p>
             <pre class="code prettyprint lang-python">import pyro
 import torch
-from pyro.infer.mcmc import HMC, MCMC
+from pyro.infer.mcmc import NUTS, MCMC
 import pyro.distributions as dist
 
 
@@ -233,10 +237,10 @@ def model(X):
                     obs=torch.as_tensor(y_obs, dtype=torch.float32))
     return y
 
-hmc_kernel = HMC(model, step_size=0.0855, num_steps=4)
-mcmc = MCMC(hmc_kernel, num_samples=1_000, warmup_steps=500)
+nuts_kernel = NUTS(model, adapt_step_size=True)
+py_mcmc = MCMC(nuts_kernel, num_samples=1_000, warmup_steps=500)
 
-mcmc = mcmc.run(torch.as_tensor(X, dtype=torch.float32))</pre>
+py_mcmc = py_mcmc.run(torch.as_tensor(X, dtype=torch.float32))</pre>
         </section>
 
         <section>
@@ -457,9 +461,10 @@ class LinearModel(Model):
 
 model = LinearModel()
 
-posterior = model.posterior_distribution(num_traces=50_000,
-                                         inference_engine=pyprob.InferenceEngine.IMPORTANCE_SAMPLING,
-                                         observe={'y_obs': torch.as_tensor(y_obs, dtype=torch.float32)})
+posterior = model.posterior_distribution(
+    num_traces=50_000,
+    inference_engine=pyprob.InferenceEngine.IMPORTANCE_SAMPLING,
+    observe={'y_obs': torch.as_tensor(y_obs, dtype=torch.float32)})
 </pre>
         </section>
 
