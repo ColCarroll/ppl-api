@@ -422,6 +422,42 @@ def linear_model():
         </section>
 
         <section>
+            <h2>PyProb</h2>
+            version 0.13.0
+            <p><a href="https://github.com/probprog/pyprob">Documentation</a>. </p>
+            <p>Joins <code>emcee</code> in not using a gradient based sampler -- here we use importance sampling. I also
+                had to cheat a little bit and take 50,000 samples instead of 1,000 to get the estimates to be reasonable.
+                The samples are pretty fast, but I suspect this does not scale to higher dimensions (but I also suspect
+                that this does allow for defining a more broad class of models than most of the other languages).
+                Defining this model was pretty nice, and I am surprised more languages do not subclass a <code>Model</code>
+                object.
+            </p>
+            <pre class="code prettyprint lang-python">import torch
+
+import pyprob
+from pyprob import Model
+from pyprob.distributions import Normal
+
+
+class LinearModel(Model):
+    def forward(self):
+        X_tensor = torch.as_tensor(X, dtype=torch.float32)
+
+        w = pyprob.sample(Normal(torch.zeros(ndims), torch.ones(ndims)))
+        y = Normal(torch.matmul(X_tensor, w), 0.1 * torch.ones(ndata))
+
+        pyprob.observe(y, name='y_obs')
+        return w
+
+model = LinearModel()
+
+posterior = model.posterior_distribution(num_traces=50_000,
+                                         inference_engine=pyprob.InferenceEngine.IMPORTANCE_SAMPLING,
+                                         observe={'y_obs': torch.as_tensor(y_obs, dtype=torch.float32)})
+</pre>
+</section>
+
+        <section>
             <h2>Accuracy</h2>
             <p>I have confidence that all the libraries implement their algorithm of choice correctly, and I tried to
                 write a simple model that would provide some reasonable samples from the correct
